@@ -1,0 +1,73 @@
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 4.0"
+    }
+  }
+}
+
+provider "google" {
+  project = var.gcp_project_id
+  region  = var.gcp_region
+}
+
+# Create a Cloud Run Service Account
+resource "google_service_account" "cloud_run_sa" {
+  account_id   = "cloud-run-sa"
+  display_name = "Cloud Run Service Account"
+}
+
+# IAM Binding for Cloud Run Service Account (Allow Cloud Run to invoke services)
+resource "google_project_iam_member" "cloud_run_invoker" {
+  project = var.gcp_project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
+}
+
+# Deploy multiple Cloud Run services using for_each
+resource "google_cloud_run_service" "cloud_run" {
+  for_each = var.cloud_run_services
+
+  name     = each.key
+  location = var.gcp_region
+  project  = var.gcp_project_id
+
+  template {
+    spec {
+      containers {
+        image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${var.artifact_registry_name}/${each.key}:${each.value.image_tag}"
+
+        dynamic "env" {
+          for_each = lookup(each.value, "env_vars", {})
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+      }
+      service_account_name = google_service_account.cloud_run_sa.email
+    }
+  }
+
+  traffic {
+    percent         = 100
+    latest_revision = true
+  }
+}
+
+# IAM Binding for Public Access (if required)
+resource "google_cloud_run_service_iam_member" "public_access" {
+  for_each = var.cloud_run_services
+
+  service  = google_cloud_run_service.cloud_run[each.key].name
+  location = var.gcp_region
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# Output Cloud Run URLs
+output "cloud_run_urls" {
+  description = "URLs of deployed Cloud Run services"
+  value       = { for key, service in google_cloud_run_service.cloud_run : key => service.status[0].url }
+}
