@@ -1,0 +1,35 @@
+variable "gcp_project_id" {
+  description = "The ID of the Google Cloud project"
+  type        = string
+}
+
+variable "gcp_region" {
+  description = "The region to deploy Cloud Run"
+  type        = string
+  default     = "us-central1"
+}
+
+variable "artifact_registry_name" {
+  description = "The name of the Artifact Registry repository"
+  type        = string
+  default     = "my-repo"
+}
+
+variable "cloud_run_services" {
+  description = "A map of Cloud Run services with their image tags and optional environment variables"
+  type = map(object({
+    image_tag = string
+    env_vars  = optional(map(string))
+  }))
+
+  default = {
+    "service-1" = {
+      image_tag = "latest"
+      env_vars  = { ENV = "production", DEBUG = "false" }
+    }
+    "service-2" = {
+      image_tag = "v1.0"
+      env_vars  = { ENV = "staging", FEATURE_FLAG = "true" }
+    }
+  }
+}
