@@ -1,0 +1,57 @@
+variable "project_id" {
+  description = "The Google Cloud project ID"
+  type        = string
+}
+
+variable "region" {
+  description = "The region for deploying resources"
+  type        = string
+  default     = "us-central1"
+}
+
+variable "vpc_name" {
+  description = "The name of the VPC network"
+  type        = string
+  default     = "custom-vpc"
+}
+
+variable "subnet_name" {
+  description = "The name of the subnet"
+  type        = string
+  default     = "custom-subnet"
+}
+
+variable "subnet_cidr" {
+  description = "The CIDR range for the subnet"
+  type        = string
+  default     = "10.0.0.0/24"
+}
+
+variable "vpc_connector_name" {
+  description = "The name of the VPC Connector"
+  type        = string
+  default     = "vpc-connector"
+}
+
+variable "vpc_connector_cidr" {
+  description = "The CIDR range for the VPC Connector"
+  type        = string
+  default     = "10.8.0.0/28"
+}
+
+variable "service_account_name" {
+  description = "The name of the Cloud Run service account"
+  type        = string
+  default     = "cloud-run-sa"
+}
+
+variable "cloud_run_services" {
+  description = "A map of Cloud Run services and their container images"
+  type = map(object({
+    image = string
+  }))
+  default = {
+    "service-1" = { image = "gcr.io/cloudrun/hello" }
+    "service-2" = { image = "gcr.io/cloudrun/hello" }
+  }
+}
