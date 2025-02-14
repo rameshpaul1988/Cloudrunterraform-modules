@@ -1,0 +1,88 @@
+provider "google" {
+  project = "<YOUR_PROJECT_ID>"
+  region  = "<YOUR_REGION>"
+}
+
+# Define VPC network
+resource "google_compute_network" "vpc_network" {
+  name                    = "custom-vpc"
+  auto_create_subnetworks = false
+}
+
+# Define a subnet within the VPC
+resource "google_compute_subnetwork" "subnet" {
+  name          = "custom-subnet"
+  network       = google_compute_network.vpc_network.id
+  region        = "<YOUR_REGION>"
+  ip_cidr_range = "10.0.0.0/24"
+}
+
+# Create a VPC Connector
+resource "google_vpc_access_connector" "vpc_connector" {
+  name          = "vpc-connector"
+  region        = "<YOUR_REGION>"
+  network       = google_compute_network.vpc_network.id
+  ip_cidr_range = "10.8.0.0/28"
+}
+
+# Create a Service Account
+resource "google_service_account" "cloud_run_sa" {
+  account_id   = "cloud-run-sa"
+  display_name = "Cloud Run Service Account"
+}
+
+# Grant IAM permissions to the service account
+resource "google_project_iam_member" "cloud_run_permissions" {
+  for_each = toset([
+    "roles/run.admin",
+    "roles/iam.serviceAccountUser",
+    "roles/vpcaccess.user"
+  ])
+
+  project = "<YOUR_PROJECT_ID>"
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
+}
+
+# Define multiple Cloud Run services using for_each
+variable "cloud_run_services" {
+  type = map(object({
+    image = string
+  }))
+  default = {
+    "service-1" = { image = "gcr.io/cloudrun/hello" }
+    "service-2" = { image = "gcr.io/cloudrun/hello" }
+  }
+}
+
+resource "google_cloud_run_service" "services" {
+  for_each = var.cloud_run_services
+
+  name     = each.key
+  location = "<YOUR_REGION>"
+
+  template {
+    spec {
+      containers {
+        image = each.value.image
+      }
+
+      service_account_name = google_service_account.cloud_run_sa.email
+
+      vpc_access {
+        connector = google_vpc_access_connector.vpc_connector.id
+        egress    = "PRIVATE_RANGES_ONLY"
+      }
+    }
+  }
+}
+
+# Allow public access to Cloud Run services
+resource "google_cloud_run_service_iam_member" "public_access" {
+  for_each = google_cloud_run_service.services
+
+  service  = each.value.name
+  location = each.value.location
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
